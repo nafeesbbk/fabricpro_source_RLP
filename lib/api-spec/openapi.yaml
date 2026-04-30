@@ -1,0 +1,1963 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: FabricPro Job Work Management System API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: users
+    description: User management
+  - name: connections
+    description: User connection management
+  - name: slips
+    description: Slip/transaction management
+  - name: payments
+    description: Payment management
+  - name: notifications
+    description: Notification management
+  - name: dashboard
+    description: Dashboard data
+  - name: gallery
+    description: Common image gallery
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # --- AUTH / USER ---
+  /auth/login:
+    post:
+      operationId: login
+      tags: [users]
+      summary: Login with mobile number (sends OTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /auth/login-password:
+    post:
+      operationId: loginWithPassword
+      tags: [users]
+      summary: Login with mobile + password (no OTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginPasswordRequest"
+      responses:
+        "200":
+          description: Logged in, returns user and session token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [users]
+      summary: Send OTP to reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: OTP sent for password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [users]
+      summary: Verify OTP and get session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerifyRequest"
+      responses:
+        "200":
+          description: Verified, returns user and session token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/kyc:
+    post:
+      operationId: submitKyc
+      tags: [users]
+      summary: Submit KYC (name + mobile)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KycRequest"
+      responses:
+        "200":
+          description: KYC submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current logged in user
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [users]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  # --- CONNECTIONS ---
+  /connections:
+    get:
+      operationId: getConnections
+      tags: [connections]
+      summary: Get all connections for current user
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, rejected]
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Connection"
+    post:
+      operationId: sendConnectionRequest
+      tags: [connections]
+      summary: Send connection request by user code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectionRequest"
+      responses:
+        "200":
+          description: Request sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+
+  /connections/{id}/accept:
+    post:
+      operationId: acceptConnection
+      tags: [connections]
+      summary: Accept a connection request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+
+  /connections/{id}/reject:
+    post:
+      operationId: rejectConnection
+      tags: [connections]
+      summary: Reject a connection request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+
+  # --- SLIPS ---
+  /slips:
+    get:
+      operationId: getSlips
+      tags: [slips]
+      summary: Get all slips for current user
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [maal_issue, maal_receive, maal_return]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, seen, completed]
+        - name: connectionId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of slips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slip"
+    post:
+      operationId: createSlip
+      tags: [slips]
+      summary: Create a new slip/transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSlipRequest"
+      responses:
+        "200":
+          description: Created slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slip"
+
+  /slips/{id}:
+    get:
+      operationId: getSlip
+      tags: [slips]
+      summary: Get slip details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Slip detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slip"
+
+  /slips/{id}/status:
+    patch:
+      operationId: updateSlipStatus
+      tags: [slips]
+      summary: Update slip status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSlipStatusRequest"
+      responses:
+        "200":
+          description: Updated slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slip"
+
+  # --- JOB SLIPS (Maal Dena / Maal Aya) ---
+  /job-slips:
+    get:
+      operationId: getJobSlips
+      tags: [slips]
+      summary: Get job slips for current user
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [seth, karigar]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [sent, viewed, confirmed, completed]
+      responses:
+        "200":
+          description: List of job slips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobSlip"
+    post:
+      operationId: createJobSlip
+      tags: [slips]
+      summary: Create a new Maal Dena slip (Seth only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobSlipRequest"
+      responses:
+        "200":
+          description: Created job slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSlip"
+
+  /job-slips/{id}:
+    get:
+      operationId: getJobSlip
+      tags: [slips]
+      summary: Get job slip detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job slip detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSlip"
+
+  /job-slips/{id}/send:
+    patch:
+      operationId: sendJobSlip
+      tags: [slips]
+      summary: Send draft slip to karigar (Seth action)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSlip"
+
+  /job-slips/{id}/view:
+    patch:
+      operationId: markJobSlipViewed
+      tags: [slips]
+      summary: Mark slip as viewed (Karigar)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSlip"
+
+  /job-slips/{id}/confirm:
+    patch:
+      operationId: confirmJobSlip
+      tags: [slips]
+      summary: Confirm maal received (Karigar OK)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSlip"
+
+  /job-slips/seth/{sethId}/pending:
+    get:
+      operationId: getPendingSlipsForSeth
+      tags: [slips]
+      summary: Get pending (balance > 0) job slips for a Seth (for karigar return)
+      parameters:
+        - name: sethId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of pending job slips with balance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobSlipWithBalance"
+
+  # --- RETURN SLIPS (Maal Wapas Jama) ---
+  /return-slips:
+    get:
+      operationId: getReturnSlips
+      tags: [slips]
+      summary: Get return slips for current user
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [karigar, seth]
+      responses:
+        "200":
+          description: List of return slips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReturnSlip"
+    post:
+      operationId: createReturnSlip
+      tags: [slips]
+      summary: Create a Maal Wapas Jama slip (Karigar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReturnSlipRequest"
+      responses:
+        "200":
+          description: Created return slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnSlip"
+
+  /return-slips/{id}:
+    get:
+      operationId: getReturnSlip
+      tags: [slips]
+      summary: Get return slip detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Return slip detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnSlip"
+
+  /return-slips/{id}/view:
+    patch:
+      operationId: markReturnSlipViewed
+      tags: [slips]
+      summary: Seth marks return slip as viewed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated return slip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnSlip"
+
+  # --- PAYMENTS ---
+  /payments:
+    get:
+      operationId: getPayments
+      tags: [payments]
+      summary: Get all payments for current user
+      parameters:
+        - name: connectionId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+    post:
+      operationId: createPayment
+      tags: [payments]
+      summary: Record a manual payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentRequest"
+      responses:
+        "200":
+          description: Created payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/pending-slips:
+    get:
+      operationId: getPendingPaymentSlips
+      tags: [payments]
+      summary: Get slips with pending payment balance for a connection
+      parameters:
+        - name: connectionId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of slips with payment balance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlipWithPaymentBalance"
+
+  /payments/record-slip-payment:
+    post:
+      operationId: recordSlipPayment
+      tags: [payments]
+      summary: Record payment for one or more slips
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordSlipPaymentRequest"
+      responses:
+        "200":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  paymentsCreated:
+                    type: integer
+                required: [success, paymentsCreated]
+
+  # --- NOTIFICATIONS ---
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get notifications for current user
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All marked as read
+
+  # --- DASHBOARD ---
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats for current user
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent activity (slips + payments)
+      responses:
+        "200":
+          description: Recent activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  # --- CHAT ---
+  /chat/conversations:
+    get:
+      operationId: getChatConversations
+      tags: [chat]
+      summary: Get all conversations for current user
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /chat/search:
+    get:
+      operationId: searchChatUsers
+      tags: [chat]
+      summary: Search users to start a chat with
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublic"
+
+  /chat/{userId}:
+    get:
+      operationId: getChatMessages
+      tags: [chat]
+      summary: Get all messages with a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a message to a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /chat/{userId}/conversation:
+    delete:
+      operationId: deleteConversation
+      tags: [chat]
+      summary: Delete all messages between current user and another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  # --- USERS (for admin) ---
+  /users:
+    get:
+      operationId: getAllUsers
+      tags: [users]
+      summary: Get all users (admin only)
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}/chat:
+    patch:
+      operationId: adminToggleChat
+      tags: [users]
+      summary: Admin enable/disable chat for a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminToggleChatRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/password:
+    patch:
+      operationId: adminChangePassword
+      tags: [users]
+      summary: Admin change any user's password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [users]
+      summary: Get all admin-configurable app settings
+      responses:
+        "200":
+          description: Settings key-value map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+    put:
+      operationId: updateAdminSettings
+      tags: [users]
+      summary: Update one or more app settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppSettings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+
+  /admin/users/create-dummy:
+    post:
+      operationId: createDummyUser
+      tags: [users]
+      summary: Admin creates a pre-registered dummy user with mobile+password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDummyUserRequest"
+      responses:
+        "200":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/users/{id}/activate:
+    post:
+      operationId: activateUser
+      tags: [users]
+      summary: Admin activate or change plan for a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateUserRequest"
+      responses:
+        "200":
+          description: Activated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/mobile:
+    patch:
+      operationId: adminChangeMobile
+      tags: [users]
+      summary: Admin change any user's mobile number
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChangeMobileRequest"
+      responses:
+        "200":
+          description: Mobile changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/heartbeat:
+    post:
+      operationId: heartbeat
+      tags: [users]
+      summary: Mark user as online (send heartbeat)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Heartbeat received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /users/lookup:
+    get:
+      operationId: lookupUserByCode
+      tags: [users]
+      summary: Lookup a user by their unique code
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Found user (partial info)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+
+  /users/me/avatar:
+    patch:
+      operationId: updateAvatar
+      tags: [users]
+      summary: Update user profile avatar (base64 image)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAvatarRequest"
+      responses:
+        "200":
+          description: Avatar updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUserById
+      tags: [users]
+      summary: Get a user's public profile by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+
+  # --- GALLERY ---
+  /gallery:
+    get:
+      operationId: getGallery
+      tags: [gallery]
+      summary: Get gallery images (retention-filtered per plan)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Gallery images list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GalleryPage"
+    post:
+      operationId: uploadGalleryImage
+      tags: [gallery]
+      summary: Upload an image to the gallery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadGalleryImageRequest"
+      responses:
+        "201":
+          description: Uploaded image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GalleryImage"
+
+  /gallery/{id}:
+    delete:
+      operationId: deleteGalleryImage
+      tags: [gallery]
+      summary: Delete own gallery image (soft delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /gallery/my-limit:
+    get:
+      operationId: getGalleryLimit
+      tags: [gallery]
+      summary: Get current user's gallery retention limit info
+      responses:
+        "200":
+          description: Gallery limit info for current plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GalleryLimitInfo"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    LoginRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+      required: [mobile]
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        otpSent:
+          type: boolean
+        hasPassword:
+          type: boolean
+        mobile:
+          type: string
+      required: [message, mobile]
+
+    LoginPasswordRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+        password:
+          type: string
+      required: [mobile, password]
+
+    OtpVerifyRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+        otp:
+          type: string
+      required: [mobile, otp]
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+        needsKyc:
+          type: boolean
+        needsPassword:
+          type: boolean
+      required: [user, needsKyc]
+
+    KycRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        mobile:
+          type: string
+        address:
+          type: string
+        aadhaar:
+          type: string
+        password:
+          type: string
+      required: [name, mobile]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        type:
+          type: string
+          enum: [text, voice, image]
+        content:
+          type: string
+        replyToId:
+          type: integer
+        replyPreview:
+          type: string
+        readAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, fromUserId, toUserId, type, content, createdAt]
+
+    SendMessageRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [text, voice, image]
+        content:
+          type: string
+        replyToId:
+          type: integer
+        replyPreview:
+          type: string
+      required: [type, content]
+
+    Conversation:
+      type: object
+      properties:
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/UserPublic"
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        unreadCount:
+          type: integer
+      required: [userId, user, unreadCount]
+
+    AdminToggleChatRequest:
+      type: object
+      properties:
+        chatEnabled:
+          type: boolean
+      required: [chatEnabled]
+
+    AdminChangePasswordRequest:
+      type: object
+      properties:
+        password:
+          type: string
+      required: [password]
+
+    AdminChangeMobileRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+      required: [mobile]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        mobile:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, seth, karigar]
+        address:
+          type: string
+        aadhaar:
+          type: string
+        avatarUrl:
+          type: string
+        avatarColor:
+          type: string
+        hasPassword:
+          type: boolean
+        chatEnabled:
+          type: boolean
+        kycCompleted:
+          type: boolean
+        isOnline:
+          type: boolean
+        lastSeen:
+          type: string
+          format: date-time
+        plan:
+          type: string
+          enum: [trial, basic, pro, inactive]
+        planExpiresAt:
+          type: string
+          format: date-time
+        trialStartedAt:
+          type: string
+          format: date-time
+        slipsUsed:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, code, mobile, role, kycCompleted]
+
+    AppSettings:
+      type: object
+      additionalProperties:
+        type: string
+
+    ActivateUserRequest:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [trial, basic, pro, inactive]
+        expiresAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+      required: [plan]
+
+    CreateDummyUserRequest:
+      type: object
+      properties:
+        mobile:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [karigar, seth]
+      required: [mobile, password]
+
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        mobile:
+          type: string
+        avatarUrl:
+          type: string
+        isOnline:
+          type: boolean
+        connectionStatus:
+          type: string
+          enum: [none, pending, accepted]
+      required: [id, code]
+
+    UpdateAvatarRequest:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+      required: [avatarUrl]
+
+    Connection:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        roleLabel:
+          type: string
+          enum: [seth, karigar]
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+        connectedUser:
+          $ref: "#/components/schemas/User"
+        direction:
+          type: string
+          enum: [sent, received]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, fromUserId, toUserId, roleLabel, status, direction]
+
+    ConnectionRequest:
+      type: object
+      properties:
+        userCode:
+          type: string
+        roleLabel:
+          type: string
+          enum: [seth, karigar]
+      required: [userCode, roleLabel]
+
+    Slip:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipId:
+          type: string
+        type:
+          type: string
+          enum: [maal_issue, maal_receive, maal_return]
+        status:
+          type: string
+          enum: [pending, seen, completed]
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        connectionId:
+          type: integer
+        description:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        imageUrl:
+          type: string
+        linkedSlipId:
+          type: integer
+        rate:
+          type: number
+        notes:
+          type: string
+        fromUser:
+          $ref: "#/components/schemas/UserPublic"
+        toUser:
+          $ref: "#/components/schemas/UserPublic"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, slipId, type, status, fromUserId, toUserId, connectionId]
+
+    CreateSlipRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [maal_issue, maal_receive, maal_return]
+        connectionId:
+          type: integer
+        toUserId:
+          type: integer
+        description:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        imageUrl:
+          type: string
+        linkedSlipId:
+          type: integer
+        rate:
+          type: number
+        notes:
+          type: string
+      required: [type, connectionId, toUserId, description]
+
+    UpdateSlipStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, seen, completed]
+      required: [status]
+
+    JobSlipItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipId:
+          type: integer
+        itemName:
+          type: string
+        totalQty:
+          type: integer
+        ratePerPc:
+          type: number
+        photoUrl:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, slipId, itemName, totalQty]
+
+    JobSlip:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipNumber:
+          type: string
+        sethId:
+          type: integer
+        karigarId:
+          type: integer
+        status:
+          type: string
+          enum: [sent, viewed, confirmed, completed]
+        notes:
+          type: string
+        voiceNoteUrl:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobSlipItem"
+        seth:
+          $ref: "#/components/schemas/UserPublic"
+        karigar:
+          $ref: "#/components/schemas/UserPublic"
+        totalQty:
+          type: integer
+        jamaQty:
+          type: integer
+        damageQty:
+          type: integer
+        shortageQty:
+          type: integer
+        balanceQty:
+          type: integer
+        isComplete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, slipNumber, sethId, karigarId, status]
+
+    JobSlipWithBalance:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipNumber:
+          type: string
+        sethId:
+          type: integer
+        karigarId:
+          type: integer
+        status:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobSlipItem"
+        totalQty:
+          type: integer
+        jamaQty:
+          type: integer
+        damageQty:
+          type: integer
+        shortageQty:
+          type: integer
+        balanceQty:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, slipNumber, sethId, karigarId, status, totalQty, balanceQty]
+
+    CreateJobSlipItemInput:
+      type: object
+      properties:
+        itemName:
+          type: string
+        totalQty:
+          type: integer
+        ratePerPc:
+          type: number
+        photoUrl:
+          type: string
+        notes:
+          type: string
+      required: [itemName, totalQty]
+
+    CreateJobSlipRequest:
+      type: object
+      properties:
+        karigarId:
+          type: integer
+        notes:
+          type: string
+        voiceNoteUrl:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateJobSlipItemInput"
+      required: [karigarId, items]
+
+    ReturnSlipEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        returnSlipId:
+          type: integer
+        jobSlipId:
+          type: integer
+        jobSlip:
+          $ref: "#/components/schemas/JobSlip"
+        jamaQty:
+          type: integer
+        damageQty:
+          type: integer
+        shortageQty:
+          type: integer
+        ratePerPc:
+          type: number
+        photoUrl:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, returnSlipId, jobSlipId, jamaQty, damageQty, shortageQty]
+
+    ReturnSlip:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipNumber:
+          type: string
+        karigarId:
+          type: integer
+        sethId:
+          type: integer
+        notes:
+          type: string
+        voiceNoteUrl:
+          type: string
+        viewedAt:
+          type: string
+          format: date-time
+        karigar:
+          $ref: "#/components/schemas/UserPublic"
+        seth:
+          $ref: "#/components/schemas/UserPublic"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnSlipEntry"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, slipNumber, karigarId, sethId]
+
+    CreateReturnSlipEntryInput:
+      type: object
+      properties:
+        jobSlipId:
+          type: integer
+        jamaQty:
+          type: integer
+        damageQty:
+          type: integer
+        shortageQty:
+          type: integer
+        ratePerPc:
+          type: number
+        photoUrl:
+          type: string
+        notes:
+          type: string
+      required: [jobSlipId, jamaQty, damageQty, shortageQty]
+
+    CreateReturnSlipRequest:
+      type: object
+      properties:
+        sethId:
+          type: integer
+        notes:
+          type: string
+        voiceNoteUrl:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateReturnSlipEntryInput"
+      required: [sethId, entries]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        paymentId:
+          type: string
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        connectionId:
+          type: integer
+        amount:
+          type: number
+        note:
+          type: string
+        screenshotUrl:
+          type: string
+        linkedSlipId:
+          type: integer
+        fromUser:
+          $ref: "#/components/schemas/UserPublic"
+        toUser:
+          $ref: "#/components/schemas/UserPublic"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, paymentId, fromUserId, toUserId, connectionId, amount]
+
+    CreatePaymentRequest:
+      type: object
+      properties:
+        connectionId:
+          type: integer
+        toUserId:
+          type: integer
+        amount:
+          type: number
+        note:
+          type: string
+        screenshotUrl:
+          type: string
+        linkedSlipId:
+          type: integer
+      required: [connectionId, toUserId, amount]
+
+    SlipWithPaymentBalance:
+      type: object
+      properties:
+        id:
+          type: integer
+        slipId:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: number
+        unit:
+          type: string
+        rate:
+          type: number
+        paymentBill:
+          type: number
+        paidAmount:
+          type: number
+        balance:
+          type: number
+        paymentStatus:
+          type: string
+        fromUser:
+          $ref: "#/components/schemas/UserPublic"
+        toUser:
+          $ref: "#/components/schemas/UserPublic"
+        imageUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, slipId, type, status, description, paidAmount, balance, paymentStatus]
+
+    SlipPaymentEntry:
+      type: object
+      properties:
+        slipId:
+          type: integer
+        amount:
+          type: number
+      required: [slipId, amount]
+
+    RecordSlipPaymentRequest:
+      type: object
+      properties:
+        connectionId:
+          type: integer
+        toUserId:
+          type: integer
+        screenshotUrl:
+          type: string
+        note:
+          type: string
+        slipPayments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SlipPaymentEntry"
+      required: [connectionId, toUserId, slipPayments]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [connection_request, maal_update, payment_update]
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        referenceId:
+          type: integer
+        referenceType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, type, title, message, isRead]
+
+    DashboardSummary:
+      type: object
+      properties:
+        role:
+          type: string
+        maalAya:
+          type: integer
+        maalGaya:
+          type: integer
+        paymentAya:
+          type: number
+        maalLiya:
+          type: integer
+        maalDiya:
+          type: integer
+        paymentDiya:
+          type: number
+        totalConnections:
+          type: integer
+        pendingSlips:
+          type: integer
+        unreadNotifications:
+          type: integer
+      required: [role, totalConnections, pendingSlips, unreadNotifications]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        activityType:
+          type: string
+          enum: [slip, payment, connection]
+        title:
+          type: string
+        subtitle:
+          type: string
+        status:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        referenceId:
+          type: integer
+      required: [id, activityType, title, timestamp]
+
+    GalleryImage:
+      type: object
+      properties:
+        id:
+          type: integer
+        uploadedBy:
+          type: integer
+        uploader:
+          $ref: "#/components/schemas/UserPublic"
+        thumbnail:
+          type: string
+        caption:
+          type: string
+        deletedAt:
+          type: string
+          format: date-time
+        uploadedAt:
+          type: string
+          format: date-time
+        isOwn:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+      required: [id, uploadedBy, thumbnail, uploadedAt, isOwn]
+
+    GalleryPage:
+      type: object
+      properties:
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/GalleryImage"
+        total:
+          type: integer
+        retentionDays:
+          type: integer
+        plan:
+          type: string
+      required: [images, total, retentionDays, plan]
+
+    UploadGalleryImageRequest:
+      type: object
+      properties:
+        thumbnail:
+          type: string
+        fullImage:
+          type: string
+        caption:
+          type: string
+      required: [thumbnail, fullImage]
+
+    GalleryLimitInfo:
+      type: object
+      properties:
+        plan:
+          type: string
+        retentionDays:
+          type: integer
+        isUnlimited:
+          type: boolean
+        message:
+          type: string
+      required: [plan, retentionDays, isUnlimited, message]

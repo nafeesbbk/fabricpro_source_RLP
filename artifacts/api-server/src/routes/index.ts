@@ -1,0 +1,38 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import authRouter from "./auth";
+import connectionsRouter from "./connections";
+import slipsRouter from "./slips";
+import jobSlipsRouter from "./job-slips";
+import returnSlipsRouter from "./return-slips";
+import paymentsRouter from "./payments";
+import notificationsRouter from "./notifications";
+import dashboardRouter from "./dashboard";
+import usersRouter from "./users";
+import chatRouter from "./chat";
+import galleryRouter from "./gallery";
+import statementRouter from "./statement";
+import webauthnRouter from "./webauthn";
+import downloadRouter from "./download";
+import adminDatabaseRouter from "./admin-database";
+
+const router: IRouter = Router();
+
+router.use(downloadRouter);
+router.use(adminDatabaseRouter);
+router.use(healthRouter);
+router.use(authRouter);
+router.use(connectionsRouter);
+router.use(slipsRouter);
+router.use(jobSlipsRouter);
+router.use(returnSlipsRouter);
+router.use(paymentsRouter);
+router.use(notificationsRouter);
+router.use(dashboardRouter);
+router.use(usersRouter);
+router.use(chatRouter);
+router.use(galleryRouter);
+router.use(statementRouter);
+router.use(webauthnRouter);
+
+export default router;
