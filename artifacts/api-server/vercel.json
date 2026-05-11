@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "installCommand": "npm install -g pnpm@10 && cd ../.. && pnpm install --frozen-lockfile=false",
+  "installCommand": "corepack enable pnpm && cd ../.. && pnpm install --frozen-lockfile=false",
   "buildCommand": "cd ../.. && pnpm --filter @workspace/api-server run build",
   "outputDirectory": ".",
   "routes": [
