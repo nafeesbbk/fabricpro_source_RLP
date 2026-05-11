@@ -55,6 +55,7 @@ async function buildAll() {
   });
 
   // Vercel serverless build — bundles api/index.ts → api/index.js (CJS)
+  // No pino plugin here: pino workers don't work in serverless, plain pino is fine
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "api/index.ts")],
     platform: "node",
@@ -64,7 +65,6 @@ async function buildAll() {
     logLevel: "info",
     external,
     sourcemap: false,
-    plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
   });
 }
 
