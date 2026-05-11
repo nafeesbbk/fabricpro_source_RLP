@@ -2,7 +2,12 @@ import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wo
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+
+// When deployed on Vercel, VITE_API_BASE_URL points to the Express API server
+if (import.meta.env.VITE_API_BASE_URL) {
+  setBaseUrl(import.meta.env.VITE_API_BASE_URL);
+}
 import { useHeartbeatPing } from "@/hooks/use-heartbeat";
 import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import { SavingIndicator } from "@/components/saving-indicator";
