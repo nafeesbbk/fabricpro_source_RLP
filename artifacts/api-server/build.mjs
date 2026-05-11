@@ -61,7 +61,7 @@ async function buildAll() {
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: path.resolve(artifactDir, "api/index.js"),
+    outfile: path.resolve(artifactDir, "dist/api/index.js"),
     logLevel: "info",
     external,
     sourcemap: false,
