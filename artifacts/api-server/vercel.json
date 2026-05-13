@@ -1,7 +1,7 @@
 {
   "version": 2,
   "installCommand": "corepack enable pnpm && cd ../.. && pnpm install --frozen-lockfile=false",
-  "buildCommand": "cd ../.. && pnpm --filter @workspace/api-server run build && cd artifacts/api-server && cp dist/api/index.js api/index.js",
+  "buildCommand": "cd ../.. && pnpm --filter @workspace/api-server run build && mkdir -p artifacts/api-server/api && cp artifacts/api-server/dist/api/index.js artifacts/api-server/api/index.js",
   "headers": [
     {
       "source": "/api/(.*)",
