@@ -1,4 +1,7 @@
 {
+  "installCommand": "corepack enable pnpm && cd ../.. && pnpm install --frozen-lockfile=false",
+  "buildCommand": "cd ../.. && pnpm --filter @workspace/fabricpro run build",
+  "outputDirectory": "dist/public",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
