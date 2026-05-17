@@ -15,6 +15,6 @@
       "status": 204,
       "continue": false
     },
-    { "src": "/(.*)", "dest": "/api/index.js" }
+    { "src": "/(.*)", "dest": "/api/index" }
   ]
 }
