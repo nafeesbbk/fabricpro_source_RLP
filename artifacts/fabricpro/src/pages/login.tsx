@@ -50,7 +50,7 @@ export default function Login() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminDeviceOtp, setAdminDeviceOtp] = useState("");
   const [pendingAdminId, setPendingAdminId] = useState<number | null>(null);
-  const [maskedAdminEmail, setMaskedAdminEmail] = useState("");
+  const [adminOtpEmail, setAdminOtpEmail] = useState("");
 
   // WhatsApp approval state
   const [waMobile, setWaMobile] = useState("");
@@ -396,7 +396,7 @@ export default function Login() {
       }
       if (data.requiresDeviceOtp) {
         setPendingAdminId(data.adminId);
-        setMaskedAdminEmail(data.maskedEmail || "");
+        setAdminOtpEmail(data.adminEmail || "");
         setAdminDeviceOtp("");
         setStep("admin_device_otp");
         return;
@@ -902,8 +902,8 @@ export default function Login() {
               <ShieldCheck className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm text-indigo-800 font-semibold">Email OTP bheja gaya</p>
-                {maskedAdminEmail && (
-                  <p className="text-xs text-indigo-700 mt-0.5">{maskedAdminEmail} par OTP bheja gaya hai</p>
+                {adminOtpEmail && (
+                  <p className="text-xs text-indigo-700 mt-1">📧 <span className="font-semibold">{adminOtpEmail}</span></p>
                 )}
               </div>
             </div>

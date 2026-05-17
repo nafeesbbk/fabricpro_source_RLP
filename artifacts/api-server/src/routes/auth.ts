@@ -312,8 +312,7 @@ router.post("/auth/admin-login", async (req, res): Promise<void> => {
   const otpKey = `ADMIN_DEV_${admin.id}`;
   const otp = await generateAndSaveOtp(otpKey, true);
   await sendOtpViaEmail(adminEmail, otp);
-  const maskedEmail = adminEmail.replace(/^(.{2}).+(@.+)$/, "$1***$2");
-  res.json({ requiresDeviceOtp: true, adminId: admin.id, maskedEmail });
+  res.json({ requiresDeviceOtp: true, adminId: admin.id, adminEmail });
 });
 
 // POST /auth/admin-verify-device - verify email OTP and trust device
