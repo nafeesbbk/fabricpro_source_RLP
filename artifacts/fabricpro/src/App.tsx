@@ -151,7 +151,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         res = await fetch(`${API_BASE}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(12000),
         });
       } catch {
         throw new Error("NETWORK_ERROR");
