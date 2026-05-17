@@ -10,7 +10,7 @@ globalThis.require = createRequire(import.meta.url);
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
 const external = [
-  "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
+  "*.node", "xlsx", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
   "fsevents", "re2", "farmhash", "xxhash-addon", "bufferutil", "utf-8-validate",
   "ssh2", "cpu-features", "dtrace-provider", "isolated-vm", "lightningcss",
   "pg-native", "oracledb", "mongodb-client-encryption", "nodemailer", "handlebars",
@@ -54,7 +54,7 @@ async function buildAll() {
     banner,
   });
 
-  // Vercel serverless build — bundles src/serverless-entry.ts → dist/api/index.js (CJS)
+  // Vercel serverless build — bundles src/serverless-entry.ts → api/index.js (CJS)
   // No pino plugin here: pino workers don't work in serverless, plain pino is fine
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/serverless-entry.ts")],
