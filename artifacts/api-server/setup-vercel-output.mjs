@@ -1,7 +1,7 @@
 import { mkdir, writeFile, copyFile } from "node:fs/promises";
 
 const base = "artifacts/api-server/.vercel/output";
-const funcDir = `${base}/functions/api.func`;
+const funcDir = `${base}/functions/index.func`;
 
 await mkdir(funcDir, { recursive: true });
 await copyFile("artifacts/api-server/dist/api/index.js", `${funcDir}/index.js`);
@@ -17,7 +17,7 @@ await writeFile(`${base}/config.json`, JSON.stringify({
   version: 3,
   routes: [
     {
-      src: "/api/(.*)",
+      src: "/(.*)",
       methods: ["OPTIONS"],
       headers: {
         "Access-Control-Allow-Origin": "*",
@@ -28,8 +28,8 @@ await writeFile(`${base}/config.json`, JSON.stringify({
       status: 204,
       continue: false,
     },
-    { src: "/(.*)", dest: "/api" },
+    { src: "/(.*)", dest: "/$1" },
   ],
 }, null, 2));
 
-console.log("✅ Vercel Build Output API structure created!");
+console.log("✅ Vercel Build Output API structure created (index.func, passthrough routing)!");
