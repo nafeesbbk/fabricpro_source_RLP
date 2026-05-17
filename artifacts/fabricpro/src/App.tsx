@@ -8,6 +8,8 @@ import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 if (import.meta.env.VITE_API_BASE_URL) {
   setBaseUrl(import.meta.env.VITE_API_BASE_URL);
 }
+// Warmup ping — wakes up the serverless API on first load
+fetch("/api/healthz").catch(() => {});
 import { useHeartbeatPing } from "@/hooks/use-heartbeat";
 import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import { SavingIndicator } from "@/components/saving-indicator";
@@ -118,8 +120,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       if (!token) throw new Error("UNAUTHORIZED");
       let res: Response;
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
       try {
-        res = await fetch("/api/auth/me", {
+        res = await fetch(`${apiBase}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch {
