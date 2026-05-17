@@ -1,7 +1,12 @@
-import { mkdir, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, writeFile, copyFile, rm } from "node:fs/promises";
 
 const base = "artifacts/api-server/.vercel/output";
-const funcDir = `${base}/functions/index.func`;
+
+// Clean any stale output from previous builds
+await rm(base, { recursive: true, force: true });
+
+// [[...catchall]].func handles EVERY path — /api/health, /api/auth/login, etc.
+const funcDir = `${base}/functions/[[...catchall]].func`;
 
 await mkdir(funcDir, { recursive: true });
 await copyFile("artifacts/api-server/dist/api/index.js", `${funcDir}/index.js`);
@@ -28,8 +33,7 @@ await writeFile(`${base}/config.json`, JSON.stringify({
       status: 204,
       continue: false,
     },
-    { src: "/(.*)", dest: "/$1" },
   ],
 }, null, 2));
 
-console.log("✅ Vercel Build Output API structure created (index.func, passthrough routing)!");
+console.log("✅ Vercel Build Output created: [[...catchall]].func handles all routes!");
