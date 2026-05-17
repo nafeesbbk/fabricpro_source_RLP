@@ -65,7 +65,9 @@ async function buildAll() {
     logLevel: "info",
     external,
     sourcemap: false,
-  });
+      // Vercel needs module.exports = expressApp (not exports.default = expressApp)
+    footer: { js: "if (typeof module.exports.default === 'function') module.exports = module.exports.default;" },
+    });
 }
 
 buildAll().catch((err) => {
