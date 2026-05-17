@@ -654,6 +654,31 @@ export default function Admin() {
                       ))}
                     </div>
                   ))}
+                  {/* Admin Account Section */}
+                  <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                    <p className="font-bold text-sm text-indigo-700 uppercase tracking-wide">Admin Account</p>
+                    <div className="flex items-center gap-3">
+                      <Label className="flex-1 text-sm text-muted-foreground">Admin Email (OTP ke liye)</Label>
+                      <Input
+                        type="email"
+                        value={mergedSettings["admin_email"] ?? ""}
+                        onChange={(e) => { setEditedSettings((prev) => ({ ...prev, admin_email: e.target.value })); setSettingsDirty(true); }}
+                        className="h-9 text-sm w-48"
+                        placeholder="admin@email.com"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label className="flex-1 text-sm text-muted-foreground">Admin Mobile Number</Label>
+                      <Input
+                        type="tel"
+                        value={mergedSettings["admin_mobile"] ?? ""}
+                        onChange={(e) => { setEditedSettings((prev) => ({ ...prev, admin_mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })); setSettingsDirty(true); }}
+                        className="h-9 text-sm w-48"
+                        placeholder="9999999999"
+                      />
+                    </div>
+                  </div>
+
                   {/* Connection Approval Section */}
                   <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
                     <p className="font-bold text-sm text-blue-700 uppercase tracking-wide">Connection Approval</p>
@@ -1005,6 +1030,43 @@ export default function Admin() {
                   }}
                 >
                   {dbBusy === "backup" ? "Backup ban rahi hai..." : "📥 Backup Download Karo"}
+                </Button>
+              </div>
+
+              {/* EXCEL EXPORT */}
+              <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                <p className="font-bold text-sm text-emerald-700 uppercase tracking-wide">📊 Excel Export (Poora Database)</p>
+                <p className="text-xs text-muted-foreground">4 sheets — Users, Job Slips, Return Slips, Payments. Admin ke liye poora data ek Excel file mein.</p>
+                <Button
+                  size="sm"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 rounded-xl font-semibold"
+                  disabled={dbBusy !== null}
+                  onClick={async () => {
+                    setDbBusy("backup");
+                    try {
+                      const token = localStorage.getItem("fabricpro_token");
+                      const res = await fetch("/api/admin/database/export-excel", {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!res.ok) throw new Error("Export fail hua");
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      const cd = res.headers.get("content-disposition") ?? "";
+                      const match = cd.match(/filename="([^"]+)"/);
+                      a.href = url;
+                      a.download = match?.[1] ?? "FabricPro_Database.xlsx";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast({ title: "Excel export complete ✅" });
+                    } catch {
+                      toast({ title: "Export fail hua", variant: "destructive" });
+                    } finally {
+                      setDbBusy(null);
+                    }
+                  }}
+                >
+                  {dbBusy === "backup" ? "Export ho raha hai..." : "📊 Excel Download Karo"}
                 </Button>
               </div>
 

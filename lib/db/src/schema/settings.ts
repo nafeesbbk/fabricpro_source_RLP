@@ -27,4 +27,6 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   otp_mode: "system",
   admin_whatsapp: "",
   connection_approval: "false",
+  admin_email: "",
+  admin_mobile: "",
 };

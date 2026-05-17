@@ -8,7 +8,16 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, ArrowLeft, UserCircle2, UserPlus, KeyRound, ShieldCheck, Fingerprint } from "lucide-react";
 import { startAuthentication } from "@simplewebauthn/browser";
 
-type Step = "mobile" | "password" | "new_register" | "forgot" | "admin" | "wa_waiting";
+type Step = "mobile" | "password" | "new_register" | "forgot" | "admin" | "admin_device_otp" | "wa_waiting";
+
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem("fp_device_id");
+  if (!id) {
+    id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("fp_device_id", id);
+  }
+  return id;
+}
 
 interface StoredUser {
   mobile: string;
@@ -39,6 +48,9 @@ export default function Login() {
   const [adminPassword, setAdminPassword] = useState("");
   const [showAdminPw, setShowAdminPw] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [adminDeviceOtp, setAdminDeviceOtp] = useState("");
+  const [pendingAdminId, setPendingAdminId] = useState<number | null>(null);
+  const [maskedAdminEmail, setMaskedAdminEmail] = useState("");
 
   // WhatsApp approval state
   const [waMobile, setWaMobile] = useState("");
@@ -74,7 +86,7 @@ export default function Login() {
     }
     const cached = localStorage.getItem(`fp_bio_${mobile}`);
     if (cached === "1") setHasBiometric(true);
-    fetch(`/api/auth/webauthn/has-credential?mobile=${encodeURIComponent(mobile)}`)
+    fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/api/auth/webauthn/has-credential?mobile=${encodeURIComponent(mobile)}`)
       .then((r) => r.json())
       .then((d) => {
         setHasBiometric(!!d.hasCredential);
@@ -371,14 +383,53 @@ export default function Login() {
     }
     setAdminLoading(true);
     try {
+      const deviceId = getOrCreateDeviceId();
       const res = await fetch("/api/auth/admin-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: adminUsername.trim(), password: adminPassword }),
+        body: JSON.stringify({ username: adminUsername.trim(), password: adminPassword, deviceId }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast({ title: data.error ?? "Login fail ho gaya", variant: "destructive" });
+        return;
+      }
+      if (data.requiresDeviceOtp) {
+        setPendingAdminId(data.adminId);
+        setMaskedAdminEmail(data.maskedEmail || "");
+        setAdminDeviceOtp("");
+        setStep("admin_device_otp");
+        return;
+      }
+      if (data.token) localStorage.setItem("fabricpro_token", data.token);
+      if (data.user) {
+        localStorage.setItem(
+          "fabricpro_last_user",
+          JSON.stringify({ mobile: data.user.mobile, name: data.user.name ?? "" })
+        );
+      }
+      setLocation("/admin");
+    } catch {
+      toast({ title: "Network error, dobara try karo", variant: "destructive" });
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleAdminDeviceOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminDeviceOtp || adminDeviceOtp.length < 6 || !pendingAdminId) return;
+    setAdminLoading(true);
+    try {
+      const deviceId = getOrCreateDeviceId();
+      const res = await fetch("/api/auth/admin-verify-device", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminId: pendingAdminId, deviceId, otp: adminDeviceOtp }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: data.error ?? "OTP galat hai", variant: "destructive" });
         return;
       }
       if (data.token) localStorage.setItem("fabricpro_token", data.token);
@@ -831,6 +882,58 @@ export default function Login() {
                 Normal login par wapas jao
               </button>
             </div>
+          </>
+        )}
+
+        {/* ── STEP: ADMIN DEVICE OTP ── */}
+        {step === "admin_device_otp" && (
+          <>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setStep("admin")} className="inline-flex items-center text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold">Device Verify Karo</h2>
+                <p className="text-muted-foreground text-sm">Naya device — email se confirm karo</p>
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex gap-3">
+              <ShieldCheck className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-indigo-800 font-semibold">Email OTP bheja gaya</p>
+                {maskedAdminEmail && (
+                  <p className="text-xs text-indigo-700 mt-0.5">{maskedAdminEmail} par OTP bheja gaya hai</p>
+                )}
+              </div>
+            </div>
+
+            <form onSubmit={handleAdminDeviceOtpSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="device-otp" className="text-base font-semibold">Email OTP Daalo</Label>
+                <Input
+                  id="device-otp"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="123456"
+                  className="h-14 text-2xl tracking-widest text-center"
+                  value={adminDeviceOtp}
+                  onChange={(e) => setAdminDeviceOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  autoFocus
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full h-14 text-lg font-bold bg-indigo-600 hover:bg-indigo-700"
+                disabled={adminLoading || adminDeviceOtp.length < 6}
+              >
+                {adminLoading ? "Verify ho raha hai..." : "Device Trust Karo ✓"}
+              </Button>
+            </form>
+
+            <p className="text-xs text-muted-foreground text-center">
+              Yeh device ek baar verify hone ke baad dobara OTP nahi maangega
+            </p>
           </>
         )}
       </div>

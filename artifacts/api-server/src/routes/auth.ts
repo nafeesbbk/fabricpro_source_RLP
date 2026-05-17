@@ -82,6 +82,25 @@ async function sendOtpViaSms(mobile: string, otp: string): Promise<void> {
   }
 }
 
+async function sendOtpViaEmail(email: string, otp: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "FabricPro <onboarding@resend.dev>",
+        to: [email],
+        subject: "FabricPro Admin Login OTP",
+        html: `<div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px"><h2 style="color:#4f46e5;margin:0 0 8px">FabricPro Admin Login</h2><p style="color:#444;margin:0 0 16px">Naye device pe login ke liye aapka OTP:</p><div style="font-size:36px;font-weight:bold;letter-spacing:10px;color:#4f46e5;padding:20px;background:#f0f0ff;border-radius:12px;text-align:center">${otp}</div><p style="color:#888;font-size:12px;margin:16px 0 0">Yeh OTP 10 minute mein expire ho jaayega. Kisi ke saath share mat karo.</p></div>`,
+      }),
+    });
+  } catch (err) {
+    console.error("Resend email failed:", err);
+  }
+}
+
 async function generateAndSaveOtp(mobile: string, skipSms = false) {
   // Invalidate old OTPs
   await db.update(otpTable).set({ used: true }).where(eq(otpTable.mobile, mobile));
@@ -224,7 +243,7 @@ router.post("/auth/login-password", async (req, res): Promise<void> => {
 
 // POST /auth/admin-login - direct username+password login for super_admin
 router.post("/auth/admin-login", async (req, res): Promise<void> => {
-  const { username, password } = req.body;
+  const { username, password, deviceId } = req.body;
 
   if (!username || !password) {
     res.status(400).json({ error: "Username aur password dono zaroori hain" });
@@ -242,7 +261,7 @@ router.post("/auth/admin-login", async (req, res): Promise<void> => {
   }
 
   // Match: username === "admin" → first super_admin; or match by mobile/code
-  let admin = admins.find((a) =>
+  const admin = admins.find((a) =>
     uname === "admin" ||
     a.mobile === uname ||
     (a.code && a.code.toLowerCase() === uname) ||
@@ -265,9 +284,79 @@ router.post("/auth/admin-login", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check if device is already trusted
+  const dId = String(deviceId || "").trim();
+  if (dId) {
+    const [trustedRow] = await db.select().from(appSettingsTable)
+      .where(eq(appSettingsTable.key, `trusted_device_${dId}`));
+    if (trustedRow) {
+      const token = await createSessionForUser(admin.id, admin.role);
+      const [refreshed] = await db.select().from(usersTable).where(eq(usersTable.id, admin.id));
+      res.json({ user: sanitizeUser(refreshed), token, needsKyc: false });
+      return;
+    }
+  }
+
+  // New/unknown device — send email OTP
+  const [emailRow] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "admin_email"));
+  const adminEmail = emailRow?.value || process.env.ADMIN_EMAIL || "";
+
+  if (!adminEmail) {
+    // No email configured — direct login fallback
+    const token = await createSessionForUser(admin.id, admin.role);
+    const [refreshed] = await db.select().from(usersTable).where(eq(usersTable.id, admin.id));
+    res.json({ user: sanitizeUser(refreshed), token, needsKyc: false });
+    return;
+  }
+
+  const otpKey = `ADMIN_DEV_${admin.id}`;
+  const otp = await generateAndSaveOtp(otpKey, true);
+  await sendOtpViaEmail(adminEmail, otp);
+  const maskedEmail = adminEmail.replace(/^(.{2}).+(@.+)$/, "$1***$2");
+  res.json({ requiresDeviceOtp: true, adminId: admin.id, maskedEmail });
+});
+
+// POST /auth/admin-verify-device - verify email OTP and trust device
+router.post("/auth/admin-verify-device", async (req, res): Promise<void> => {
+  const { adminId, deviceId, otp } = req.body;
+  if (!adminId || !deviceId || !otp) {
+    res.status(400).json({ error: "adminId, deviceId aur otp zaroori hain" });
+    return;
+  }
+
+  const otpKey = `ADMIN_DEV_${adminId}`;
+  const now = new Date();
+  const [otpRow] = await db.select().from(otpTable).where(
+    and(
+      eq(otpTable.mobile, otpKey),
+      eq(otpTable.otp, String(otp)),
+      eq(otpTable.used, false),
+      gt(otpTable.expiresAt, now)
+    )
+  );
+
+  if (!otpRow) {
+    res.status(401).json({ error: "OTP galat hai ya expire ho gaya" });
+    return;
+  }
+
+  await db.update(otpTable).set({ used: true }).where(eq(otpTable.id, otpRow.id));
+
+  const dId = String(deviceId).trim();
+  await db
+    .insert(appSettingsTable)
+    .values({ key: `trusted_device_${dId}`, value: new Date().toISOString() })
+    .onConflictDoUpdate({ target: appSettingsTable.key, set: { value: new Date().toISOString(), updatedAt: new Date() } });
+
+  const id = parseInt(String(adminId), 10);
+  const [admin] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!admin) {
+    res.status(401).json({ error: "Admin user nahi mila" });
+    return;
+  }
+
   const token = await createSessionForUser(admin.id, admin.role);
-  const [refreshed] = await db.select().from(usersTable).where(eq(usersTable.id, admin.id));
-  res.json({ user: sanitizeUser(refreshed), token, needsKyc: false });
+  res.json({ user: sanitizeUser(admin), token, needsKyc: false });
 });
 
 // In-memory rate limiter for forgot-password (mobile → {count, windowStart})
