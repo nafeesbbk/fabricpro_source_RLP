@@ -1,5 +1,20 @@
 {
   "version": 2,
   "installCommand": "corepack enable pnpm && cd ../.. && pnpm install --frozen-lockfile=false",
-  "buildCommand": "bash build-vercel.sh"
+  "buildCommand": "bash build-vercel.sh",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "methods": ["OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization,Content-Type",
+        "Access-Control-Max-Age": "86400"
+      },
+      "status": 204,
+      "continue": false
+    },
+    { "src": "/(.*)", "dest": "/api/index.js" }
+  ]
 }
