@@ -198,10 +198,10 @@ router.post("/return-slips", async (req: Request & { user?: any }, res): Promise
   // Determine karigarId: if Seth is creating on behalf of an offline karigar, use the override
   let effectiveKarigarId: number = req.user.id;
   if (karigarIdOverride && typeof karigarIdOverride === "number" && karigarIdOverride !== req.user.id) {
-    // Validate: the karigar must be an offline karigar (dummy mobile starting with "100")
+    // Validate: karigar must exist and be connected to this Seth
     const [karigar] = await db.select().from(usersTable).where(eq(usersTable.id, karigarIdOverride));
-    if (!karigar || !karigar.mobile.startsWith("100")) {
-      res.status(400).json({ error: "Yeh karigar offline nahi hai — woh khud apni slip bana sakta hai" });
+    if (!karigar) {
+      res.status(400).json({ error: "Karigar nahi mila" });
       return;
     }
     effectiveKarigarId = karigarIdOverride;
@@ -278,6 +278,91 @@ router.post("/return-slips", async (req: Request & { user?: any }, res): Promise
   });
 
   res.json(await enrichReturnSlip(slip));
+});
+
+// PATCH /return-slips/:id — Edit return slip (karigar or seth only)
+router.patch("/return-slips/:id", async (req: Request & { user?: any }, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [slip] = await db.select().from(returnSlipsTable).where(eq(returnSlipsTable.id, id));
+  if (!slip) { res.status(404).json({ error: "Slip nahi mila" }); return; }
+
+  const isKarigar = slip.karigarId === req.user.id;
+  const isSeth = slip.sethId === req.user.id;
+  if (!isKarigar && !isSeth) {
+    res.status(403).json({ error: "Sirf karigar ya seth edit kar sakte hain" });
+    return;
+  }
+
+  const { notes, entries, notify } = req.body;
+
+  // Update notes and reset viewedAt so Seth reviews again
+  await db.update(returnSlipsTable)
+    .set({ notes: notes ?? slip.notes, viewedAt: null })
+    .where(eq(returnSlipsTable.id, id));
+
+  // Update entries if provided
+  if (entries && Array.isArray(entries) && entries.length > 0) {
+    for (const entry of entries) {
+      if (!entry.id) continue;
+      await db.update(returnSlipEntriesTable)
+        .set({
+          jamaQty: entry.jamaQty ?? 0,
+          damageQty: entry.damageQty ?? 0,
+          shortageQty: entry.shortageQty ?? 0,
+          noWorkQty: entry.noWorkQty ?? 0,
+          ratePerPc: entry.ratePerPc != null ? String(entry.ratePerPc) : null,
+          notes: entry.notes ?? null,
+        })
+        .where(and(eq(returnSlipEntriesTable.id, entry.id), eq(returnSlipEntriesTable.returnSlipId, id)));
+    }
+
+    // Recalculate job slip status after edits
+    const allEntries = await db.select().from(returnSlipEntriesTable).where(eq(returnSlipEntriesTable.returnSlipId, id));
+    const jobSlipIds = [...new Set(allEntries.map((e) => e.jobSlipId))];
+    for (const jobSlipId of jobSlipIds) {
+      const [jobSlip] = await db.select().from(jobSlipsTable).where(eq(jobSlipsTable.id, jobSlipId));
+      if (!jobSlip) continue;
+      const items = await db.select().from(jobSlipItemsTable).where(eq(jobSlipItemsTable.slipId, jobSlip.id));
+      const totalQty = items.reduce((sum, i) => sum + i.totalQty, 0);
+      const allJobEntries = await db.select().from(returnSlipEntriesTable).where(eq(returnSlipEntriesTable.jobSlipId, jobSlip.id));
+      const returned = allJobEntries.reduce((sum, e) => sum + e.jamaQty + e.damageQty + e.shortageQty + (e.noWorkQty ?? 0), 0);
+      const newStatus = returned >= totalQty ? "completed" : jobSlip.status === "completed" ? "confirmed" : jobSlip.status;
+      if (newStatus !== jobSlip.status) {
+        await db.update(jobSlipsTable).set({ status: newStatus, updatedAt: new Date() }).where(eq(jobSlipsTable.id, jobSlip.id));
+      }
+    }
+  }
+
+  // Send notification if requested
+  if (notify) {
+    const editor = req.user.name || req.user.mobile;
+    if (isKarigar) {
+      // Karigar ne edit kiya → Seth ko batao
+      await db.insert(notificationsTable).values({
+        userId: slip.sethId,
+        type: "maal_update",
+        title: "Return Slip Update Hua",
+        message: `${editor} ne return slip ${slip.slipNumber} mein badlav kiya — please check karein`,
+        referenceId: slip.id,
+        referenceType: "return_slip",
+      });
+    } else {
+      // Seth ne edit kiya → Karigar ko batao
+      await db.insert(notificationsTable).values({
+        userId: slip.karigarId,
+        type: "maal_update",
+        title: "Return Slip Update Hua",
+        message: `${editor} ne return slip ${slip.slipNumber} mein badlav kiya — please check karein`,
+        referenceId: slip.id,
+        referenceType: "return_slip",
+      });
+    }
+  }
+
+  const [updated] = await db.select().from(returnSlipsTable).where(eq(returnSlipsTable.id, id));
+  res.json(await enrichReturnSlip(updated));
 });
 
 // PATCH /return-slips/:id/view

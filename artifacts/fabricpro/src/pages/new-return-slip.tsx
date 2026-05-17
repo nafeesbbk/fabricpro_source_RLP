@@ -3,6 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import {
   useGetConnections,
   useGetPendingSlipsForSeth,
+  useGetJobSlips,
   useCreateReturnSlip,
   useGetMe,
 } from "@workspace/api-client-react";
@@ -53,6 +54,15 @@ export default function NewReturnSlip() {
 
   const { data: meData } = useGetMe();
   const { data: connections = [] } = useGetConnections();
+
+  // Fetch all my karigar slips to know which seths have balance qty > 0
+  const { data: allKarigarSlips = [] } = useGetJobSlips({ role: "karigar" } as any);
+  const sethIdsWithBalance = new Set(
+    (allKarigarSlips as any[])
+      .filter((s: any) => (s.balanceQty ?? 0) > 0)
+      .map((s: any) => s.sethId)
+  );
+
   const { data: pendingSlips = [], isLoading: loadingSlips } = useGetPendingSlipsForSeth(
     selectedSeth?.connectedUser?.id ?? 0,
     { query: { enabled: mode === "normal" && !!selectedSeth } }
@@ -74,10 +84,13 @@ export default function NewReturnSlip() {
 
   const createReturn = useCreateReturnSlip();
 
-  // In normal mode: show Seth connections. In offline mode: show offline karigar connections
-  const sethConnections = (connections as any[]).filter((c: any) => c.status === "accepted");
+  // In normal mode: show only Seth connections with balance qty > 0
+  // In offline mode: show offline karigar connections
+  const sethConnections = (connections as any[]).filter(
+    (c: any) => c.status === "accepted" && sethIdsWithBalance.has(c.connectedUser?.id)
+  );
   const offlineKarigarConnections = (connections as any[]).filter(
-    (c: any) => c.status === "accepted" && c.connectedUser?.mobile?.startsWith("100")
+    (c: any) => c.status === "accepted" && c.connectedUser?.role === "karigar"
   );
   const activeConnections = mode === "offline" ? offlineKarigarConnections : sethConnections;
   const filtered = activeConnections.filter((c: any) => {
@@ -273,13 +286,29 @@ export default function NewReturnSlip() {
             {filtered.length === 0 ? (
               <div className="text-center py-16">
                 <Package className="h-14 w-14 mx-auto text-muted-foreground/30 mb-3" />
-                <p className="text-muted-foreground">
-                  {mode === "offline" ? "Koi offline karigar nahi mila" : "Koi Seth nahi mila"}
-                </p>
-                {mode === "offline" && offlineKarigarConnections.length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Pehle Connections page se offline karigar add karo
-                  </p>
+                {mode === "normal" ? (
+                  <>
+                    <p className="text-muted-foreground font-medium">Koi pending maal nahi</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Jinke paas balance qty hai wahi seth dikhenge
+                    </p>
+                    {search && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Search: "{search}" — koi nahi mila
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground">
+                      {search ? "Koi offline karigar nahi mila" : "Koi offline karigar nahi"}
+                    </p>
+                    {offlineKarigarConnections.length === 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Pehle Connections page se offline karigar add karo
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
@@ -311,6 +340,18 @@ export default function NewReturnSlip() {
                     {!c.connectedUser?.mobile?.startsWith("100") && (
                       <p className="text-sm text-muted-foreground">{c.connectedUser?.mobile}</p>
                     )}
+                    {mode === "normal" && (() => {
+                      const totalBalance = (allKarigarSlips as any[])
+                        .filter((s: any) => s.sethId === c.connectedUser?.id && (s.balanceQty ?? 0) > 0)
+                        .reduce((sum: number, s: any) => sum + (s.balanceQty ?? 0), 0);
+                      const slipCount = (allKarigarSlips as any[])
+                        .filter((s: any) => s.sethId === c.connectedUser?.id && (s.balanceQty ?? 0) > 0).length;
+                      return totalBalance > 0 ? (
+                        <p className="text-xs text-amber-600 font-semibold mt-0.5">
+                          {slipCount} slip • {totalBalance.toLocaleString()} pcs baaki
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </button>
@@ -539,20 +580,16 @@ export default function NewReturnSlip() {
                   )}
 
                   {parseInt(entry.shortageQty || "0") > 0 && (
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Rate/pc (₹) — Shortage ke liye</label>
-                      <Input
-                        type="number"
-                        placeholder="12.50"
-                        value={entry.ratePerPc || ""}
-                        onChange={(e) => updateEntry(slip.id, "ratePerPc", e.target.value)}
-                        className="rounded-xl"
-                      />
-                      {entry.ratePerPc && parseInt(entry.shortageQty || "0") > 0 && (
-                        <p className="text-xs text-red-600 mt-1">
-                          Shortage amount: ₹{(parseInt(entry.shortageQty) * parseFloat(entry.ratePerPc)).toLocaleString()}
+                    <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-red-700">
+                          Shortage: {entry.shortageQty} pcs
                         </p>
-                      )}
+                        <p className="text-xs text-red-600 mt-0.5">
+                          Rate/pc Seth dalenge — jab woh yeh slip dekhenge
+                        </p>
+                      </div>
                     </div>
                   )}
 
