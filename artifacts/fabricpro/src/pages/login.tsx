@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { setFabricproToken } from "@/lib/auth-token";
 import { useLogin, useLoginWithPassword, useForgotPassword } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,7 +142,7 @@ export default function Login() {
         throw new Error(err.error || "Login fail");
       }
       const data = await loginRes.json();
-      localStorage.setItem("fabricpro_token", data.token);
+      setFabricproToken(data.token);
       if (data.user) {
         localStorage.setItem("fabricpro_last_user", JSON.stringify({ mobile: data.user.mobile, name: data.user.name }));
       }
@@ -176,7 +177,7 @@ export default function Login() {
           if (waPollRef.current) clearInterval(waPollRef.current);
           setWaPolling(false);
           if (waMode === "signup" || waMode === "login") {
-            if (data.token) localStorage.setItem("fabricpro_token", data.token);
+            if (data.token) setFabricproToken(data.token);
             if (data.needsKyc) {
               sessionStorage.setItem("kyc_in_progress", "1");
               sessionStorage.setItem("wa_just_approved", "1");
@@ -213,7 +214,7 @@ export default function Login() {
           if (data.directLogin) {
             // Already approved user — KYC pending, let them in directly
             sessionStorage.removeItem("verify_mobile");
-            if (data.token) localStorage.setItem("fabricpro_token", data.token);
+            if (data.token) setFabricproToken(data.token);
             sessionStorage.setItem("kyc_in_progress", "1");
             sessionStorage.setItem("wa_just_approved", "1");
             setLocation("/kyc");
@@ -265,7 +266,7 @@ export default function Login() {
       { data: { mobile, password } },
       {
         onSuccess: (data: any) => {
-          if (data.token) localStorage.setItem("fabricpro_token", data.token);
+          if (data.token) setFabricproToken(data.token);
           if (data.user) {
             localStorage.setItem(
               "fabricpro_last_user",
@@ -292,7 +293,7 @@ export default function Login() {
       {
         onSuccess: (data: any) => {
           if (data.directLogin) {
-            if (data.token) localStorage.setItem("fabricpro_token", data.token);
+            if (data.token) setFabricproToken(data.token);
             sessionStorage.setItem("kyc_in_progress", "1");
             sessionStorage.setItem("wa_just_approved", "1");
             setLocation("/kyc");
@@ -401,7 +402,7 @@ export default function Login() {
         setStep("admin_device_otp");
         return;
       }
-      if (data.token) localStorage.setItem("fabricpro_token", data.token);
+      if (data.token) setFabricproToken(data.token);
       if (data.user) {
         localStorage.setItem(
           "fabricpro_last_user",
@@ -432,7 +433,7 @@ export default function Login() {
         toast({ title: data.error ?? "OTP galat hai", variant: "destructive" });
         return;
       }
-      if (data.token) localStorage.setItem("fabricpro_token", data.token);
+      if (data.token) setFabricproToken(data.token);
       if (data.user) {
         localStorage.setItem(
           "fabricpro_last_user",

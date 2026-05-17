@@ -5,6 +5,7 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { getUserIdFromToken, clearFabricproToken } from "@/lib/auth-token";
 
 // When deployed on Vercel, VITE_API_BASE_URL points to the Express API server
 if (import.meta.env.VITE_API_BASE_URL) {
@@ -45,21 +46,39 @@ import { getLastPath } from "@/hooks/use-swipe-nav";
 // Configure auth token getter for all API calls
 setAuthTokenGetter(() => localStorage.getItem("fabricpro_token"));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 5 * 60 * 1000,      // 5 min — cached data "fresh" for 5 min
-      gcTime: 24 * 60 * 60 * 1000,   // 24 hr — keep in localStorage for 1 day
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        staleTime: 5 * 60 * 1000,   // 5 min — cached data "fresh" for 5 min
+        gcTime: Infinity,            // kabhi delete nahi hoga (permanently stored)
+      },
     },
-  },
-});
+  });
+}
 
-const localPersister = createSyncStoragePersister({
-  storage: window.localStorage,
-  key: "fabricpro_cache",
-  throttleTime: 1000,
-});
+// Per-user cache provider — userId change hone par pura remount hota hai
+function UserCacheProvider({ userId, children }: { userId: string; children: React.ReactNode }) {
+  const [client] = React.useState(makeQueryClient);
+  const persister = React.useMemo(
+    () =>
+      createSyncStoragePersister({
+        storage: window.localStorage,
+        key: `fabricpro_cache_${userId}`,  // har user ka alag cache key
+        throttleTime: 1000,
+      }),
+    []
+  );
+  return (
+    <PersistQueryClientProvider
+      client={client}
+      persistOptions={{ persister, maxAge: Infinity }}
+    >
+      {children}
+    </PersistQueryClientProvider>
+  );
+}
 
 function HeartbeatPinger() {
   useHeartbeatPing();
@@ -160,7 +179,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Auth token invalid — logout karo
   if (error?.message === "UNAUTHORIZED") {
-    localStorage.removeItem("fabricpro_token");
+    clearFabricproToken();
     return <Redirect to="/login" />;
   }
 
@@ -192,14 +211,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    localStorage.removeItem("fabricpro_token");
+    clearFabricproToken();
     return <Redirect to="/login" />;
   }
 
   if (!user.kycCompleted) {
     const inKycFlow = sessionStorage.getItem("kyc_in_progress") === "1";
     if (!inKycFlow) {
-      localStorage.removeItem("fabricpro_token");
+      clearFabricproToken();
       return <Redirect to="/login" />;
     }
     if (location !== "/kyc") {
@@ -236,7 +255,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         </button>
         <button
           onClick={() => {
-            localStorage.removeItem("fabricpro_token");
+            clearFabricproToken();
             window.location.href = "/login";
           }}
           className="text-sm text-muted-foreground underline"
@@ -296,7 +315,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         </button>
         <button
           onClick={() => {
-            localStorage.removeItem("fabricpro_token");
+            clearFabricproToken();
             window.location.href = "/login";
           }}
           className="text-xs text-muted-foreground underline"
@@ -419,11 +438,20 @@ function AnimatedRouter() {
 }
 
 function App() {
+  const [userId, setUserId] = React.useState(() => getUserIdFromToken());
+
+  React.useEffect(() => {
+    const update = () => setUserId(getUserIdFromToken());
+    window.addEventListener("fabricpro_auth_change", update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener("fabricpro_auth_change", update);
+      window.removeEventListener("storage", update);
+    };
+  }, []);
+
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: localPersister, maxAge: 24 * 60 * 60 * 1000 }}
-    >
+    <UserCacheProvider key={userId} userId={userId}>
       <TooltipProvider>
         <HeartbeatPinger />
         <SavingIndicator />
@@ -433,7 +461,7 @@ function App() {
         <Toaster />
         <PWAInstallBanner />
       </TooltipProvider>
-    </PersistQueryClientProvider>
+    </UserCacheProvider>
   );
 }
 
