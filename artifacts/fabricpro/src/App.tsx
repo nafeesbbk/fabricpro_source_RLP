@@ -8,11 +8,11 @@ import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
 import { getUserIdFromToken, clearFabricproToken } from "@/lib/auth-token";
 
 // When deployed on Vercel, VITE_API_BASE_URL points to the Express API server
-if (import.meta.env.VITE_API_BASE_URL) {
-  setBaseUrl(import.meta.env.VITE_API_BASE_URL);
-}
-// Warmup ping — wakes up the serverless API on first load
-fetch("/api/healthz").catch(() => {});
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+if (API_BASE) setBaseUrl(API_BASE);
+
+// Warmup ping — sahi API URL pe jaata hai (cold start ke liye)
+fetch(`${API_BASE}/api/healthz`).catch(() => {});
 import { useHeartbeatPing } from "@/hooks/use-heartbeat";
 import { PWAInstallBanner } from "@/components/pwa-install-banner";
 import { SavingIndicator } from "@/components/saving-indicator";
@@ -143,15 +143,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const token = localStorage.getItem("fabricpro_token");
 
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isLoading, error, refetch } = useQuery({
     queryKey: ["me"],
     queryFn: async () => {
       if (!token) throw new Error("UNAUTHORIZED");
       let res: Response;
-      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
       try {
-        res = await fetch(`${apiBase}/api/auth/me`, {
+        res = await fetch(`${API_BASE}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(12000),
         });
       } catch {
         throw new Error("NETWORK_ERROR");
@@ -163,11 +163,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     enabled: !!token,
     retry: (failureCount, err: any) => {
       if (err?.message === "UNAUTHORIZED") return false;
-      return failureCount < 3;
+      return failureCount < 6;
     },
-    retryDelay: 3000,
+    retryDelay: (attempt) => Math.min(attempt * 2000, 8000),
     staleTime: 5 * 60 * 1000,
-    gcTime: 24 * 60 * 60 * 1000,
+    gcTime: Infinity,
+    refetchInterval: (query) =>
+      query.state.status === "error" && query.state.error?.message === "NETWORK_ERROR"
+        ? 10000
+        : false,
   });
 
   // Hook must be called unconditionally at top level
@@ -187,14 +191,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (error?.message === "NETWORK_ERROR" && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6 text-center space-y-4">
-        <div className="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto">
+        <div className="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto animate-pulse">
           <span className="text-3xl">📡</span>
         </div>
         <div className="space-y-1">
-          <h1 className="text-lg font-bold">Internet nahi hai</h1>
-          <p className="text-muted-foreground text-sm">Connection aane par automatically wapas aa jaayega</p>
+          <h1 className="text-lg font-bold">Server se connect ho raha hai...</h1>
+          <p className="text-muted-foreground text-sm">
+            Server shuru ho raha hai, thodi der mein khud chal jaayega
+          </p>
         </div>
         <div className="h-6 w-6 rounded-full border-2 border-yellow-500 border-t-transparent animate-spin" />
+        <button
+          onClick={() => refetch()}
+          className="text-sm text-primary underline mt-2"
+        >
+          Abhi try karo
+        </button>
       </div>
     );
   }
