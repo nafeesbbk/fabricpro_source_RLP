@@ -15,13 +15,16 @@ import statementRouter from "./statement";
 import webauthnRouter from "./webauthn";
 import downloadRouter from "./download";
 import adminDatabaseRouter from "./admin-database";
+import exportRouter from "./export";
 
 const router: IRouter = Router();
 
 router.use(downloadRouter);
 router.use(adminDatabaseRouter);
+router.use(exportRouter);
 router.use(healthRouter);
 router.use(authRouter);
+router.use(webauthnRouter);
 router.use(connectionsRouter);
 router.use(slipsRouter);
 router.use(jobSlipsRouter);
@@ -33,6 +36,5 @@ router.use(usersRouter);
 router.use(chatRouter);
 router.use(galleryRouter);
 router.use(statementRouter);
-router.use(webauthnRouter);
 
 export default router;
