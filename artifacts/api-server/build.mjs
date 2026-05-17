@@ -54,7 +54,7 @@ async function buildAll() {
     banner,
   });
 
-  // Vercel serverless build — bundles src/serverless-entry.ts → api/index.js (CJS)
+  // Vercel serverless build — bundles src/serverless-entry.ts → dist/api/index.js (CJS)
   // No pino plugin here: pino workers don't work in serverless, plain pino is fine
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/serverless-entry.ts")],
@@ -65,9 +65,9 @@ async function buildAll() {
     logLevel: "info",
     external,
     sourcemap: false,
-      // Vercel needs module.exports = expressApp (not exports.default = expressApp)
+    // Vercel needs module.exports = expressApp (not exports.default = expressApp)
     footer: { js: "if (typeof module.exports.default === 'function') module.exports = module.exports.default;" },
-    });
+  });
 }
 
 buildAll().catch((err) => {
