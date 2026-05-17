@@ -1,12 +1,11 @@
+import type { IncomingMessage, ServerResponse } from "http";
 import app from "./app";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
-let migrationsDone = false;
+let migrationPromise: Promise<void> | null = null;
 
 async function runMigrations() {
-  if (migrationsDone) return;
-  migrationsDone = true;
   try {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
@@ -39,9 +38,25 @@ async function runMigrations() {
     await db.update(usersTable)
       .set({ role: "super_admin", kycCompleted: true, activationStatus: "active" })
       .where(eq(usersTable.mobile, "7905282816"));
-  } catch (_e) {}
+  } catch (_e) {
+    // ignore — columns may already exist
+  }
 }
 
-runMigrations().catch(() => {});
+function ensureMigrations(): Promise<void> {
+  if (!migrationPromise) {
+    migrationPromise = runMigrations();
+  }
+  return migrationPromise;
+}
 
-export default app;
+// Serverless handler: await migrations on first request, then delegate to Express
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  await ensureMigrations();
+  return new Promise<void>((resolve) => {
+    app(req as any, res as any, () => resolve());
+    // Express handles the response; resolve when it's done
+    res.on("finish", () => resolve());
+    res.on("close", () => resolve());
+  });
+}
