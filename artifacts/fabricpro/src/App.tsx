@@ -1,5 +1,7 @@
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClient, useQuery } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
@@ -47,9 +49,16 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 30 * 1000,
+      staleTime: 5 * 60 * 1000,      // 5 min — cached data "fresh" for 5 min
+      gcTime: 24 * 60 * 60 * 1000,   // 24 hr — keep in localStorage for 1 day
     },
   },
+});
+
+const localPersister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: "fabricpro_cache",
+  throttleTime: 1000,
 });
 
 function HeartbeatPinger() {
@@ -411,7 +420,10 @@ function AnimatedRouter() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: localPersister, maxAge: 24 * 60 * 60 * 1000 }}
+    >
       <TooltipProvider>
         <HeartbeatPinger />
         <SavingIndicator />
@@ -421,7 +433,7 @@ function App() {
         <Toaster />
         <PWAInstallBanner />
       </TooltipProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 
