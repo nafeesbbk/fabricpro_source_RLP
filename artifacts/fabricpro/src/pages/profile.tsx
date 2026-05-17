@@ -1,12 +1,13 @@
 import { useRef, useState, useEffect } from "react";
 import { useGetMe, useLogout, useUpdateAvatar, customFetch } from "@workspace/api-client-react";
+import { apiUrl } from "@/lib/api-url";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Phone, BadgeCheck, Camera, X, Fingerprint, ShieldCheck, ShieldOff, Pencil, Check, Lock, Eye, EyeOff, KeyRound, User } from "lucide-react";
+import { LogOut, Phone, BadgeCheck, Camera, X, Fingerprint, ShieldCheck, ShieldOff, Pencil, Check, Lock, Eye, EyeOff, KeyRound, User, Mail, Download, FileSpreadsheet, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { startRegistration } from "@simplewebauthn/browser";
 
@@ -24,6 +25,17 @@ export default function Profile() {
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
+
+  // Email editing state
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailVal, setEmailVal] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+
+  // UPI ID editing state
+  const [editingUpi, setEditingUpi] = useState(false);
+  const [upiVal, setUpiVal] = useState("");
+  const [upiSaving, setUpiSaving] = useState(false);
 
   // Password change state
   const [showPwForm, setShowPwForm] = useState(false);
@@ -76,7 +88,7 @@ export default function Profile() {
     setNameSaving(true);
     try {
       const token = localStorage.getItem("fabricpro_token");
-      const res = await fetch("/api/users/me/name", {
+      const res = await fetch(apiUrl("/api/users/me/name"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ name: trimmed }),
@@ -90,6 +102,68 @@ export default function Profile() {
     } finally { setNameSaving(false); }
   };
 
+  const handleEmailSave = async () => {
+    const trimmed = emailVal.trim().toLowerCase();
+    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast({ title: "Sahi email address daalo", variant: "destructive" }); return;
+    }
+    setEmailSaving(true);
+    try {
+      const token = localStorage.getItem("fabricpro_token");
+      const res = await fetch(apiUrl("/api/users/me/email"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ email: trimmed || null }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Save nahi hua"); }
+      queryClient.invalidateQueries({ queryKey: ["getMe"] });
+      toast({ title: trimmed ? "Email save ho gaya ✓" : "Email hata di gayi" });
+      setEditingEmail(false);
+    } catch (e: any) {
+      toast({ title: e.message, variant: "destructive" });
+    } finally { setEmailSaving(false); }
+  };
+
+  const handleUpiSave = async () => {
+    const trimmed = upiVal.trim();
+    setUpiSaving(true);
+    try {
+      const updated = await customFetch<any>("/api/users/me/upi", {
+        method: "PATCH",
+        body: JSON.stringify({ upiId: trimmed || null }),
+      });
+      queryClient.setQueryData(["getMe"], (old: any) => old ? { ...old, ...updated } : updated);
+      queryClient.invalidateQueries({ queryKey: ["getMe"] });
+      toast({ title: trimmed ? "UPI ID save ho gaya ✓" : "UPI ID hata di gayi" });
+      setEditingUpi(false);
+    } catch (e: any) {
+      toast({ title: e.message ?? "Save nahi hua", variant: "destructive" });
+    } finally { setUpiSaving(false); }
+  };
+
+  const handleDataExport = async () => {
+    setExportingData(true);
+    try {
+      const token = localStorage.getItem("fabricpro_token");
+      const res = await fetch(apiUrl("/api/users/me/export-excel"), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Export nahi hua");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const cd = res.headers.get("content-disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = match?.[1] ?? "MyData_FabricPro.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Data export ho gaya! Excel file download ho rahi hai" });
+    } catch {
+      toast({ title: "Export fail hua, dobara try karo", variant: "destructive" });
+    } finally { setExportingData(false); }
+  };
+
   const handlePasswordChange = async () => {
     if (!currentPw) { toast({ title: "Purana password daalo", variant: "destructive" }); return; }
     if (newPw.length < 6) { toast({ title: "Naya password kam se kam 6 characters ka hona chahiye", variant: "destructive" }); return; }
@@ -97,7 +171,7 @@ export default function Profile() {
     setPwSaving(true);
     try {
       const token = localStorage.getItem("fabricpro_token");
-      const res = await fetch("/api/users/me/password", {
+      const res = await fetch(apiUrl("/api/users/me/password"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
@@ -155,7 +229,7 @@ export default function Profile() {
     try {
       const token = localStorage.getItem("fabricpro_token");
       // Get registration options from server
-      const optRes = await fetch("/api/auth/webauthn/register-options", {
+      const optRes = await fetch(apiUrl("/api/auth/webauthn/register-options"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -169,7 +243,7 @@ export default function Profile() {
       const credential = await startRegistration({ optionsJSON: options });
 
       // Verify on server
-      const verifyRes = await fetch("/api/auth/webauthn/register", {
+      const verifyRes = await fetch(apiUrl("/api/auth/webauthn/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ credential }),
@@ -196,7 +270,7 @@ export default function Profile() {
     setBioLoading(true);
     try {
       const token = localStorage.getItem("fabricpro_token");
-      await fetch("/api/auth/webauthn/credential", {
+      await fetch(apiUrl("/api/auth/webauthn/credential"), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -371,6 +445,112 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
+
+              {/* Email — editable */}
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-muted rounded-xl shrink-0">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                </div>
+                {editingEmail ? (
+                  <div className="flex-1 flex gap-2">
+                    <Input
+                      type="email"
+                      value={emailVal}
+                      onChange={(e) => setEmailVal(e.target.value)}
+                      placeholder="aapka@email.com"
+                      className="h-9 text-sm flex-1"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") handleEmailSave(); if (e.key === "Escape") setEditingEmail(false); }}
+                    />
+                    <Button size="sm" className="h-9 px-3" onClick={handleEmailSave} disabled={emailSaving}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-9 px-3" onClick={() => setEditingEmail(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-semibold text-sm">{(user as any).email ?? <span className="text-muted-foreground font-normal">— abhi nahi dala</span>}</p>
+                    </div>
+                    <button
+                      onClick={() => { setEmailVal((user as any).email ?? ""); setEditingEmail(true); }}
+                      className="p-2 rounded-xl hover:bg-muted transition-colors"
+                    >
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* UPI ID — editable */}
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-muted rounded-xl shrink-0">
+                  <Wallet className="h-5 w-5 text-muted-foreground" />
+                </div>
+                {editingUpi ? (
+                  <div className="flex-1 flex gap-2">
+                    <Input
+                      type="text"
+                      value={upiVal}
+                      onChange={(e) => setUpiVal(e.target.value)}
+                      placeholder="mobile@upi ya yourname@okaxis"
+                      className="h-9 text-sm flex-1"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") handleUpiSave(); if (e.key === "Escape") setEditingUpi(false); }}
+                    />
+                    <Button size="sm" className="h-9 px-3" onClick={handleUpiSave} disabled={upiSaving}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-9 px-3" onClick={() => setEditingUpi(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">UPI ID <span className="text-orange-600 font-semibold">(payment ke liye)</span></p>
+                      <p className="font-semibold text-sm">{(user as any).upiId ?? <span className="text-muted-foreground font-normal">— abhi nahi dala</span>}</p>
+                    </div>
+                    <button
+                      onClick={() => { setUpiVal((user as any).upiId ?? ""); setEditingUpi(true); }}
+                      className="p-2 rounded-xl hover:bg-muted transition-colors"
+                    >
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Data Export Card */}
+          {user && (
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-emerald-100 rounded-xl">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-base">Apna Data Export Karo</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Job slips, return slips, payments — sab Excel mein
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleDataExport}
+                disabled={exportingData}
+                className="w-full h-11 font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {exportingData ? "Taiyar ho raha hai..." : "Excel File Download Karo"}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                3 sheets — Maal Gaya, Maal Aya, Payments
+              </p>
             </div>
           )}
 

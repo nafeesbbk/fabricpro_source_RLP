@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { apiUrl } from "@/lib/api-url";
 import { useGetConnections, getGetConnectionsQueryKey, useAcceptConnection, useRejectConnection, ConnectionStatus } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export default function Connections() {
     queryKey: ["connections", "admin_review"],
     queryFn: async () => {
       const token = localStorage.getItem("fabricpro_token");
-      const res = await fetch("/api/connections?status=admin_review", {
+      const res = await fetch(apiUrl("/api/connections?status=admin_review"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) return [];
@@ -132,7 +133,7 @@ export default function Connections() {
     setOfflineLoading(true);
     try {
       const token = localStorage.getItem("fabricpro_token");
-      const res = await fetch("/api/connections/add-offline-karigar", {
+      const res = await fetch(apiUrl("/api/connections/add-offline-karigar"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

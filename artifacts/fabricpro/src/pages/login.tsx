@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { setFabricproToken } from "@/lib/auth-token";
+import { apiUrl } from "@/lib/api-url";
 import { useLogin, useLoginWithPassword, useForgotPassword } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +118,7 @@ export default function Login() {
     setBioLoading(true);
     try {
       // Get authentication options
-      const optRes = await fetch("/api/auth/webauthn/login-options", {
+      const optRes = await fetch(apiUrl("/api/auth/webauthn/login-options"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mobile }),
@@ -132,7 +133,7 @@ export default function Login() {
       const credential = await startAuthentication({ optionsJSON: options });
 
       // Verify on server
-      const loginRes = await fetch("/api/auth/webauthn/login", {
+      const loginRes = await fetch(apiUrl("/api/auth/webauthn/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mobile, credential }),
@@ -171,7 +172,7 @@ export default function Login() {
     setWaPolling(true);
     const poll = async () => {
       try {
-        const res = await fetch(`/api/auth/wa-status?mobile=${encodeURIComponent(waMobile)}&mode=${waMode}`);
+        const res = await fetch(apiUrl(`/api/auth/wa-status?mobile=${encodeURIComponent(waMobile)}&mode=${waMode}`));
         const data = await res.json();
         if (data.approved) {
           if (waPollRef.current) clearInterval(waPollRef.current);
@@ -385,7 +386,7 @@ export default function Login() {
     setAdminLoading(true);
     try {
       const deviceId = getOrCreateDeviceId();
-      const res = await fetch("/api/auth/admin-login", {
+      const res = await fetch(apiUrl("/api/auth/admin-login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: adminUsername.trim(), password: adminPassword, deviceId }),
@@ -423,7 +424,7 @@ export default function Login() {
     setAdminLoading(true);
     try {
       const deviceId = getOrCreateDeviceId();
-      const res = await fetch("/api/auth/admin-verify-device", {
+      const res = await fetch(apiUrl("/api/auth/admin-verify-device"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminId: pendingAdminId, deviceId, otp: adminDeviceOtp }),

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiUrl } from "@/lib/api-url";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Navigation } from "lucide-react";
 import { format } from "date-fns";
@@ -49,7 +50,7 @@ export function LocationTrackingModal({
     if (!token) return;
     setRefreshing(true);
     try {
-      const res = await fetch("/api/users", {
+      const res = await fetch(apiUrl("/api/users"), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;

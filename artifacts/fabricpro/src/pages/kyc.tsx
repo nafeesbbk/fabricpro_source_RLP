@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { apiUrl } from "@/lib/api-url";
 import { useGetMe, useSubmitKyc } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
@@ -32,7 +33,7 @@ export default function Kyc() {
 
   useEffect(() => {
     const token = localStorage.getItem("fabricpro_token");
-    fetch("/api/auth/registration-info", {
+    fetch(apiUrl("/api/auth/registration-info"), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => r.json())

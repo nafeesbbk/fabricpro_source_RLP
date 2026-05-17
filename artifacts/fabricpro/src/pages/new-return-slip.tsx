@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { apiUrl } from "@/lib/api-url";
 import {
   useGetConnections,
   useGetPendingSlipsForSeth,
@@ -166,7 +167,7 @@ export default function NewReturnSlip() {
         // Seth creating on behalf of offline karigar — manual fetch with karigarId override
         setSubmitLoading(true);
         const token = localStorage.getItem("fabricpro_token");
-        const res = await fetch("/api/return-slips", {
+        const res = await fetch(apiUrl("/api/return-slips"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

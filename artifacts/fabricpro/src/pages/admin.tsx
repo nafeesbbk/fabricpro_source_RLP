@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { apiUrl } from "@/lib/api-url";
 import {
   useGetAllUsers,
   useAdminChangePassword,
@@ -146,7 +147,7 @@ export default function Admin() {
     queryKey: ["admin", "connections", "review"],
     queryFn: async () => {
       const token = localStorage.getItem("fabricpro_token");
-      const res = await fetch("/api/admin/connections/review", {
+      const res = await fetch(apiUrl("/api/admin/connections/review"), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) return [];
@@ -271,7 +272,7 @@ export default function Admin() {
   const { data: deadUsers, isLoading: deadLoading } = useQuery<UserRow[]>({
     queryKey: ["dead-users"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/dead-users", {
+      const res = await fetch(apiUrl("/api/admin/dead-users"), {
         headers: { Authorization: `Bearer ${localStorage.getItem("fabricpro_token") ?? ""}` },
       });
       if (!res.ok) throw new Error("Load nahi hua");
@@ -1006,7 +1007,7 @@ export default function Admin() {
                     setDbBusy("backup");
                     try {
                       const token = localStorage.getItem("fabricpro_token");
-                      const res = await fetch("/api/admin/database/backup", {
+                      const res = await fetch(apiUrl("/api/admin/database/backup"), {
                         headers: { Authorization: `Bearer ${token}` },
                       });
                       if (!res.ok) throw new Error("Backup fail ho gayi");
@@ -1045,7 +1046,7 @@ export default function Admin() {
                     setDbBusy("backup");
                     try {
                       const token = localStorage.getItem("fabricpro_token");
-                      const res = await fetch("/api/admin/database/export-excel", {
+                      const res = await fetch(apiUrl("/api/admin/database/export-excel"), {
                         headers: { Authorization: `Bearer ${token}` },
                       });
                       if (!res.ok) throw new Error("Export fail hua");
@@ -1091,7 +1092,7 @@ export default function Admin() {
                       const text = await restoreFile.text();
                       const parsed = JSON.parse(text);
                       const token = localStorage.getItem("fabricpro_token");
-                      const res = await fetch("/api/admin/database/restore", {
+                      const res = await fetch(apiUrl("/api/admin/database/restore"), {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
@@ -1165,7 +1166,7 @@ export default function Admin() {
                           setDbBusy("clean");
                           try {
                             const token = localStorage.getItem("fabricpro_token");
-                            const res = await fetch("/api/admin/database/clean", {
+                            const res = await fetch(apiUrl("/api/admin/database/clean"), {
                               method: "DELETE",
                               headers: { Authorization: `Bearer ${token}` },
                             });
