@@ -34,10 +34,10 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 app.get("/api/ping", (_req, res) => { res.json({ ok: true, ts: Date.now() }); });
 
-// Full schema + migration runner
 app.post("/api/sys-migrate-9x7k2", async (_req, res) => {
   const stmts = [
-    `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT, mobile TEXT NOT NULL UNIQUE, email TEXT, role TEXT NOT NULL DEFAULT 'karigar', address TEXT, password TEXT, avatar_url TEXT, aadhaar TEXT, chat_enabled BOOLEAN NOT NULL DEFAULT TRUE, kyc_completed BOOLEAN NOT NULL DEFAULT FALSE, is_online BOOLEAN NOT NULL DEFAULT FALSE, last_seen TIMESTAMPTZ, plan TEXT NOT NULL DEFAULT 'trial', trial_started_at TIMESTAMPTZ, plan_expires_at TIMESTAMPTZ, slips_used INTEGER NOT NULL DEFAULT 0, activation_status TEXT NOT NULL DEFAULT 'active', payment_screenshot TEXT, latitude DOUBLE PRECISION, longitude DOUBLE PRECISION, location_updated_at TIMESTAMPTZ, wa_token TEXT, wa_token_mode TEXT, wa_token_expiry TIMESTAMPTZ, upi_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), deleted_at TIMESTAMPTZ, deleted_by INTEGER)`,
+    // Ensure all tables exist
+    `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT, mobile TEXT NOT NULL UNIQUE, role TEXT NOT NULL DEFAULT 'karigar', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS otp (id SERIAL PRIMARY KEY, mobile TEXT NOT NULL, otp TEXT NOT NULL, used BOOLEAN NOT NULL DEFAULT FALSE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS sessions (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), token TEXT NOT NULL UNIQUE, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS connections (id SERIAL PRIMARY KEY, from_user_id INTEGER NOT NULL REFERENCES users(id), to_user_id INTEGER NOT NULL REFERENCES users(id), role_label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -52,6 +52,35 @@ app.post("/api/sys-migrate-9x7k2", async (_req, res) => {
     `CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS gallery_images (id SERIAL PRIMARY KEY, uploaded_by INTEGER NOT NULL REFERENCES users(id), thumbnail TEXT NOT NULL, full_image TEXT NOT NULL, caption TEXT, deleted_at TIMESTAMPTZ, uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS webauthn_credentials (credential_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, public_key TEXT NOT NULL, counter INTEGER NOT NULL DEFAULT 0, transports TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`,
+    // Add ALL missing columns to users
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS code TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS aadhaar TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS chat_enabled BOOLEAN NOT NULL DEFAULT TRUE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_completed BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'trial'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS slips_used INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS activation_status TEXT NOT NULL DEFAULT 'active'`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_screenshot TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS location_updated_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS wa_token TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS wa_token_mode TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS wa_token_expiry TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_id TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_by INTEGER`,
+    // Make code unique (ignore if constraint exists)
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='users_code_key') THEN ALTER TABLE users ADD CONSTRAINT users_code_key UNIQUE (code); END IF; END $$`,
+    // Disable RLS
     `ALTER TABLE users DISABLE ROW LEVEL SECURITY`,
     `ALTER TABLE otp DISABLE ROW LEVEL SECURITY`,
     `ALTER TABLE sessions DISABLE ROW LEVEL SECURITY`,
@@ -67,9 +96,10 @@ app.post("/api/sys-migrate-9x7k2", async (_req, res) => {
     `ALTER TABLE app_settings DISABLE ROW LEVEL SECURITY`,
     `ALTER TABLE gallery_images DISABLE ROW LEVEL SECURITY`,
     `ALTER TABLE webauthn_credentials DISABLE ROW LEVEL SECURITY`,
-    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('DEMO001','Ramesh Seth','9876543210','seth',true,'active','trial') ON CONFLICT (mobile) DO NOTHING`,
-    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('DEMO002','Suresh Karigar','9876543211','karigar',true,'active','trial') ON CONFLICT (mobile) DO NOTHING`,
-    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('ADMIN01','Admin','9999999999','super_admin',true,'active','trial') ON CONFLICT (mobile) DO NOTHING`,
+    // Demo users
+    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('DEMO001','Ramesh Seth','9876543210','seth',true,'active','trial') ON CONFLICT (mobile) DO UPDATE SET code=EXCLUDED.code, name=EXCLUDED.name, role=EXCLUDED.role, kyc_completed=EXCLUDED.kyc_completed`,
+    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('DEMO002','Suresh Karigar','9876543211','karigar',true,'active','trial') ON CONFLICT (mobile) DO UPDATE SET code=EXCLUDED.code, name=EXCLUDED.name, role=EXCLUDED.role, kyc_completed=EXCLUDED.kyc_completed`,
+    `INSERT INTO users (code,name,mobile,role,kyc_completed,activation_status,plan) VALUES ('ADMIN01','Admin','9999999999','super_admin',true,'active','trial') ON CONFLICT (mobile) DO UPDATE SET code=EXCLUDED.code, name=EXCLUDED.name, role=EXCLUDED.role, kyc_completed=EXCLUDED.kyc_completed`,
   ];
   const results: { stmt: string; ok: boolean; err?: string }[] = [];
   for (const stmt of stmts) {
@@ -77,7 +107,7 @@ app.post("/api/sys-migrate-9x7k2", async (_req, res) => {
       await db.execute(sql.raw(stmt));
       results.push({ stmt: stmt.slice(0, 50), ok: true });
     } catch (e: any) {
-      results.push({ stmt: stmt.slice(0, 50), ok: false, err: e.message?.slice(0, 100) });
+      results.push({ stmt: stmt.slice(0, 50), ok: false, err: e.message?.slice(0, 120) });
     }
   }
   res.json({ done: true, results });
